@@ -3,36 +3,38 @@
 #include <math.h>
 #include <stdlib.h>
 
-// Useful macros
+// macros for blocks
 #define BLOCK_LOW(id, p, n) ((id) * (n) / (p))
 #define BLOCK_HIGH(id, p, n) (BLOCK_LOW(id + 1, p, n) - 1)
 #define BLOCK_SIZE(id, p, n) (BLOCK_LOW(id + 1, p, n) - BLOCK_LOW(id, p, n))
 #define BLOCK_OWNER(index, p, n) (((p * index + 1) - 1) / n)
 
-// Function declarations
-void read_row_striped_matrix(int matrix[], int rows, int cols, int id, int p);
+// function declarations
+void read_row_partitioned_matrix(int matrix[], int rows, int cols, int id, int p);
 void read_vector(int vector[], int n, int id, int p);
 void multiply_matrix_vector(int matrix[], int vector[], int result[], int id, int p, int rows, int cols);
 void gather_result(int result[], int id, int p, int n);
 
 int main(int argc, char *argv[])
 {
-    int id, p, rows, cols;
+    int mypid, nprocs, rows, cols;
     double start_time;
 
     // MPI initialization
     MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &id);
-    MPI_Comm_size(MPI_COMM_WORLD, &p);
+    // determines the identifier of the calling process
+    MPI_Comm_rank(MPI_COMM_WORLD, &mypid);
+    // determines the number of processes
+    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     // Barrier so all processes start together from this point and then record start time
     MPI_Barrier(MPI_COMM_WORLD);
-    if (!id)
+    if (!mypid)
         start_time = MPI_Wtime();
 
     // root process = p - 1
     // Only root process can read the size fo the matrix and vector from files
-    if (!id)
+    if (!mypid)
     {
         FILE *ftr;
         ftr = fopen("matrix.txt", "r");
@@ -55,24 +57,24 @@ int main(int argc, char *argv[])
     MPI_Bcast(&cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     // Allocate space for local matrix, vector and result vector
-    int *matrix = (int *)malloc(BLOCK_SIZE(id, p, rows) * cols * sizeof(int));
+    int *matrix = (int *)malloc(BLOCK_SIZE(mypid, nprocs, rows) * cols * sizeof(int));
     int *vector = (int *)malloc(cols * sizeof(int));
-    int *result = (int *)malloc(BLOCK_SIZE(id, p, rows) * sizeof(int));
-    for (int i = 0; i < BLOCK_SIZE(id, p, rows); i++)
+    int *result = (int *)malloc(BLOCK_SIZE(mypid, nprocs, rows) * sizeof(int));
+    for (int i = 0; i < BLOCK_SIZE(mypid, nprocs, rows); i++)
         result[i] = 0;
 
     // Read the matrix and vector from input files
-    read_row_striped_matrix(matrix, rows, cols, id, p);
-    read_vector(vector, cols, id, p);
+    read_row_partitioned_matrix(matrix, rows, cols, mypid, nprocs);
+    read_vector(vector, cols, mypid, nprocs);
 
     // Multiply the matrix and vector, gather and then print the result
-    multiply_matrix_vector(matrix, vector, result, id, p, rows, cols);
-    gather_result(result, id, p, rows);
+    multiply_matrix_vector(matrix, vector, result, mypid, nprocs, rows, cols);
+    gather_result(result, mypid, nprocs, rows);
 
     // Process 0 will print the result
-    if (!id)
+    if (!mypid)
     {
-        printf("Time for %d process and %d rows:\n ", p, rows);
+        printf("Time for %d process and %d rows:\n ", nprocs, rows);
         double t = (MPI_Wtime() - start_time) * 1000;
         printf("%f ms\n", t);
     }
@@ -80,7 +82,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void read_row_striped_matrix(int matrix[], int rows, int cols, int id, int p)
+void read_row_partitioned_matrix(int matrix[], int rows, int cols, int id, int p)
 {
     // read the matrix from the file
     int value;
