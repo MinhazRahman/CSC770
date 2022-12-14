@@ -82,6 +82,11 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+/*
+ *   open a file and inputs a two-dimensional
+ *   matrix, reading and distributing blocks of rows to the
+ *   other processes.
+ */
 void read_row_partitioned_matrix(int matrix[], int rows, int cols, int id, int p)
 {
     // read the matrix from the file
@@ -128,6 +133,11 @@ void read_row_partitioned_matrix(int matrix[], int rows, int cols, int id, int p
     }
 }
 
+/*
+ *   Open a file containing a vector, read its contents,
+ *   and distributed the elements by block among the
+ *   processes in a communicator.
+ */
 void read_vector(int vector[], int n, int id, int p)
 {
     // If process 0 then read vector from file and broadcast to other processes
@@ -148,6 +158,9 @@ void read_vector(int vector[], int n, int id, int p)
     MPI_Bcast(vector, n, MPI_INT, 0, MPI_COMM_WORLD);
 }
 
+/**
+ * Multiply a block of rows of a matrix with the vector
+ */
 void multiply_matrix_vector(int matrix[], int vector[], int result[], int id, int p, int rows, int cols)
 {
     for (int i = 0; i < BLOCK_SIZE(id, p, rows); i++)
@@ -155,6 +168,9 @@ void multiply_matrix_vector(int matrix[], int vector[], int result[], int id, in
             result[i] += matrix[i * cols + j] * vector[j];
 }
 
+/**
+ * Agglomerate the results from other processes
+ */
 void gather_result(int result[], int id, int p, int n)
 {
     int sum = 0;
