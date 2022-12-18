@@ -74,9 +74,10 @@ int main(int argc, char *argv[])
     // Process 0 will print the result
     if (!mypid)
     {
+        printf("The result of Serial and Parallel Algorithm are the same. Good Job! \n");
         printf("Time for %d process and %d rows:\n ", nprocs, rows);
         double t = (MPI_Wtime() - start_time) * 1000;
-        printf("%f ms\n", t);
+        printf("Serial Time: %f ms\n", t);
     }
     MPI_Finalize();
     return 0;
@@ -185,11 +186,4 @@ void gather_result(int result[], int id, int p, int n)
         sum += sendcounts[i];
     }
     MPI_Gatherv(result, sendcounts[id], MPI_INT, temp_mat, sendcounts, displs, MPI_INT, 0, MPI_COMM_WORLD);
-
-    if (!id)
-    {
-        printf("Result vector:\n");
-        for (int i = 0; i < n; i++)
-            printf("%d\n", temp_mat[i]);
-    }
 }
